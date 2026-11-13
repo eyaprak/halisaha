@@ -1,0 +1,52 @@
+# Tek komut: docker compose up -d --build
+# Önce .env.example dosyasını .env olarak kopyalayıp gizli değerleri doldurun.
+name: hali-saha
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: halisaha
+      POSTGRES_DB: halisaha
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD .env dosyasinda tanimli olmali}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    # Port bilerek yayınlanmıyor: veritabanına yalnız uygulama, iç ağdan erişir.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U halisaha -d halisaha"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGHOST: db
+      PGUSER: halisaha
+      PGDATABASE: halisaha
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      # Eksik ya da kısa gizli değerle uygulama başlamaz ve nedenini günlüğe yazar.
+      PANEL_SIFRESI: ${PANEL_SIFRESI:-}
+      OTURUM_ANAHTARI: ${OTURUM_ANAHTARI:-}
+      IP_OZET_ANAHTARI: ${IP_OZET_ANAHTARI:-}
+      ACILIS_SAATI: ${ACILIS_SAATI:-9}
+      KAPANIS_SAATI: ${KAPANIS_SAATI:-24}
+      GUN_SAYISI: ${GUN_SAYISI:-7}
+      IP_SINIRI: ${IP_SINIRI:-3}
+      GUVENILIR_VEKIL_SAYISI: ${GUVENILIR_VEKIL_SAYISI:-0}
+    ports:
+      - "${YAYIN_ADRESI:-127.0.0.1}:${YAYIN_PORTU:-3000}:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/saglik || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
+volumes:
+  pgdata:
